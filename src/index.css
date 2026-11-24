@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Fraunces", Georgia, Cambria, serif;
+  --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-ivory: #FBF9F4;
+  --color-parchment: #F4EFE4;
+  --color-pine: #1B4332;
+  --color-pine-hover: #255742;
+  --color-brass: #9C7832;
+  --color-ink: #1C2420;
+  --color-ink-muted: #56635C;
+  --color-stone: #E4DFD3;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    background-color: #FBF9F4;
+    color: #1C2420;
+  }
+
+  h1, h2, .font-display {
+    font-family: var(--font-serif);
+    text-wrap: balance;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Print Stylesheet for US-Letter Legal Meeting PDF Export */
+@media screen {
+  #printable-legal-briefing {
+    display: none;
+  }
+}
+
+@media print {
+  @page {
+    size: letter portrait;
+    margin: 0.65in 0.65in 0.7in 0.65in;
+  }
+
+  html, body {
+    background: #FFFFFF !important;
+    color: #111827 !important;
+    font-size: 10.5pt;
+    line-height: 1.45;
+  }
+
+  #app-shell {
+    display: none !important;
+  }
+
+  #printable-legal-briefing {
+    display: block !important;
+    width: 100%;
+  }
+
+  .print-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-section-break {
+    break-before: auto;
+    margin-top: 18pt;
+  }
+}

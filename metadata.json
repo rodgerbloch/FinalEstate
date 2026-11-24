@@ -1,0 +1,8 @@
+{
+  "name": "Estate Ledger",
+  "description": "An archival pre-need estate planning and post-death executor administration workspace with real-time family collaboration, document vault, task reminders, printable legal briefings, and an AI Estate Consultant.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

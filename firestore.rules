@@ -1,0 +1,555 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default-Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function hasVerifiedEmail(email) {
+      return isVerifiedUser() &&
+        request.auth.token.email is string &&
+        request.auth.token.email.lower() == email;
+    }
+
+    function isEstateOwner(estateId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/estates/$(estateId)) &&
+        get(/databases/$(database)/documents/estates/$(estateId)).data.ownerId == request.auth.uid;
+    }
+
+    function isEstateMember(estateId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/estates/$(estateId)/members/$(request.auth.uid));
+    }
+
+    function getMemberData(estateId) {
+      return get(/databases/$(database)/documents/estates/$(estateId)/members/$(request.auth.uid)).data;
+    }
+
+    function canAccessEstate(estateId) {
+      return isEstateOwner(estateId) || isEstateMember(estateId);
+    }
+
+    function canEditEstate(estateId) {
+      return isEstateOwner(estateId) || (
+        isEstateMember(estateId) &&
+        getMemberData(estateId).permission == 'View & Update'
+      );
+    }
+
+    function canAccessTask(estateId, taskId) {
+      return isEstateOwner(estateId) || (
+        isEstateMember(estateId) && (
+          getMemberData(estateId).taskIds.size() == 0 ||
+          taskId in getMemberData(estateId).taskIds
+        )
+      );
+    }
+
+    function canEditTask(estateId, taskId) {
+      return isEstateOwner(estateId) || (
+        canEditEstate(estateId) && (
+          getMemberData(estateId).taskIds.size() == 0 ||
+          taskId in getMemberData(estateId).taskIds
+        )
+      );
+    }
+
+    // --- Validation Blueprints ---
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        data.uid == request.auth.uid &&
+        data.email is string && data.email.size() <= 200 &&
+        data.displayName is string && data.displayName.size() <= 120 &&
+        data.photoURL is string && data.photoURL.size() <= 500 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidEstate(data) {
+      return data.keys().hasAll(['id', 'ownerId', 'ownerEmail', 'ownerName', 'title', 'principalName', 'activeStage', 'notes', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'ownerId', 'ownerEmail', 'ownerName', 'title', 'principalName', 'activeStage', 'notes', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.ownerId) &&
+        data.ownerEmail is string && data.ownerEmail.size() <= 200 &&
+        data.ownerName is string && data.ownerName.size() <= 120 &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 140 &&
+        data.principalName is string && data.principalName.size() >= 1 && data.principalName.size() <= 120 &&
+        data.activeStage in ['Pre-Need Planning', 'Executor Action'] &&
+        data.notes is string && data.notes.size() <= 5000 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidEstateMember(data) {
+      return data.keys().hasAll(['uid', 'estateId', 'estateTitle', 'ownerId', 'ownerName', 'email', 'displayName', 'role', 'permission', 'invitationId', 'taskIds', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'estateId', 'estateTitle', 'ownerId', 'ownerName', 'email', 'displayName', 'role', 'permission', 'invitationId', 'taskIds', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        isValidId(data.estateId) &&
+        data.estateTitle is string && data.estateTitle.size() <= 140 &&
+        isValidId(data.ownerId) &&
+        data.ownerName is string && data.ownerName.size() <= 120 &&
+        data.email is string && data.email.size() <= 200 &&
+        data.displayName is string && data.displayName.size() <= 120 &&
+        data.role in ['Family Member', 'Legal Advisor', 'Co-Executor', 'Financial Advisor'] &&
+        data.permission in ['View & Update', 'View Only'] &&
+        isValidId(data.invitationId) &&
+        data.taskIds is list && data.taskIds.size() <= 50 &&
+        (data.taskIds.size() == 0 || (data.taskIds[0] is string && data.taskIds[0].size() <= 128)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidEstateTask(data) {
+      return data.keys().hasAll(['id', 'estateId', 'ownerId', 'title', 'category', 'stage', 'priority', 'timingLabel', 'dueDate', 'reminderAt', 'reminderDismissed', 'instructions', 'executorNotes', 'completed', 'completedAt', 'sharedWithEmails', 'createdBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'estateId', 'ownerId', 'title', 'category', 'stage', 'priority', 'timingLabel', 'dueDate', 'reminderAt', 'reminderDismissed', 'instructions', 'executorNotes', 'completed', 'completedAt', 'prerequisiteTaskIds', 'sharedWithEmails', 'createdBy', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.estateId) &&
+        isValidId(data.ownerId) &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+        data.category in ['Assets', 'Liabilities', 'Cashflow', 'Legal & Probate', 'Insurance', 'Digital & Access', 'Final Wishes'] &&
+        data.stage in ['Pre-Need Planning', 'Executor Action'] &&
+        data.priority in ['High', 'Medium', 'Low'] &&
+        data.timingLabel is string && data.timingLabel.size() <= 80 &&
+        data.dueDate is string && data.dueDate.size() <= 32 &&
+        data.reminderAt is string && data.reminderAt.size() <= 40 &&
+        data.reminderDismissed is bool &&
+        data.instructions is list && data.instructions.size() <= 30 &&
+        (data.instructions.size() == 0 || (data.instructions[0] is string && data.instructions[0].size() <= 600)) &&
+        data.executorNotes is string && data.executorNotes.size() <= 10000 &&
+        data.completed is bool &&
+        data.completedAt is string && data.completedAt.size() <= 40 &&
+        (!('prerequisiteTaskIds' in data) || (
+          data.prerequisiteTaskIds is list &&
+          data.prerequisiteTaskIds.size() <= 20 &&
+          (data.prerequisiteTaskIds.size() == 0 || (isValidId(data.prerequisiteTaskIds[0]) && data.prerequisiteTaskIds[0] != data.id))
+        )) &&
+        data.sharedWithEmails is list && data.sharedWithEmails.size() <= 25 &&
+        (data.sharedWithEmails.size() == 0 || (data.sharedWithEmails[0] is string && data.sharedWithEmails[0].size() <= 200)) &&
+        isValidId(data.createdBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidTaskComment(data) {
+      return data.keys().hasAll(['id', 'estateId', 'taskId', 'ownerId', 'authorUid', 'authorName', 'authorRole', 'kind', 'body', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'estateId', 'taskId', 'ownerId', 'authorUid', 'authorName', 'authorRole', 'kind', 'body', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.estateId) &&
+        isValidId(data.taskId) &&
+        isValidId(data.ownerId) &&
+        isValidId(data.authorUid) &&
+        data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 120 &&
+        data.authorRole is string && data.authorRole.size() >= 1 && data.authorRole.size() <= 60 &&
+        data.kind in ['note', 'question', 'update'] &&
+        data.body is string && data.body.size() >= 1 && data.body.size() <= 2000 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidVaultDocument(data) {
+      return data.keys().hasAll(['id', 'estateId', 'ownerId', 'name', 'mimeType', 'sizeBytes', 'sha256', 'category', 'taskId', 'notes', 'chunkCount', 'uploadedByUid', 'uploadedByName', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'estateId', 'ownerId', 'name', 'mimeType', 'sizeBytes', 'sha256', 'category', 'taskId', 'notes', 'chunkCount', 'uploadedByUid', 'uploadedByName', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.estateId) &&
+        isValidId(data.ownerId) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 220 &&
+        data.mimeType is string && data.mimeType.size() <= 120 &&
+        data.sizeBytes is int && data.sizeBytes >= 0 && data.sizeBytes <= 10485760 &&
+        data.sha256 is string && data.sha256.size() == 64 && data.sha256.matches('^[a-f0-9]{64}$') &&
+        data.category in ['Assets', 'Liabilities', 'Cashflow', 'Legal & Probate', 'Insurance', 'Digital & Access', 'Final Wishes', 'General'] &&
+        data.taskId is string && data.taskId.size() <= 128 &&
+        data.notes is string && data.notes.size() <= 4000 &&
+        data.chunkCount is int && data.chunkCount >= 1 && data.chunkCount <= 30 &&
+        isValidId(data.uploadedByUid) &&
+        data.uploadedByName is string && data.uploadedByName.size() <= 120 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidVaultChunk(data) {
+      return data.keys().hasAll(['index', 'estateId', 'ownerId', 'data']) &&
+        data.keys().hasOnly(['index', 'estateId', 'ownerId', 'data']) &&
+        data.index is int && data.index >= 0 && data.index <= 29 &&
+        isValidId(data.estateId) &&
+        isValidId(data.ownerId) &&
+        data.data is string && data.data.size() >= 1 && data.data.size() <= 650000;
+    }
+
+    function isValidInvitation(data) {
+      return data.keys().hasAll(['id', 'estateId', 'estateTitle', 'ownerId', 'ownerEmail', 'ownerName', 'inviteeEmail', 'inviteeUid', 'role', 'permission', 'taskIds', 'status', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'estateId', 'estateTitle', 'ownerId', 'ownerEmail', 'ownerName', 'inviteeEmail', 'inviteeUid', 'role', 'permission', 'taskIds', 'status', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.estateId) &&
+        data.estateTitle is string && data.estateTitle.size() <= 140 &&
+        isValidId(data.ownerId) &&
+        data.ownerEmail is string && data.ownerEmail.size() <= 200 &&
+        data.ownerName is string && data.ownerName.size() <= 120 &&
+        data.inviteeEmail is string && data.inviteeEmail.size() >= 3 && data.inviteeEmail.size() <= 200 &&
+        data.inviteeUid is string && data.inviteeUid.size() <= 128 &&
+        data.role in ['Family Member', 'Legal Advisor', 'Co-Executor', 'Financial Advisor'] &&
+        data.permission in ['View & Update', 'View Only'] &&
+        data.taskIds is list && data.taskIds.size() <= 50 &&
+        (data.taskIds.size() == 0 || (data.taskIds[0] is string && data.taskIds[0].size() <= 128)) &&
+        data.status in ['pending', 'accepted', 'declined', 'revoked'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // --- Collection Group Rule for Member Discovery ---
+    match /{path=**}/members/{memberUid} {
+      allow list: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // --- Users (PII Isolation) ---
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow create: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'photoURL', 'updatedAt']);
+    }
+
+    // --- Estates ---
+    match /estates/{estateId} {
+      allow get: if isValidId(estateId) && canAccessEstate(estateId);
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerifiedUser() &&
+        isValidId(estateId) &&
+        isValidEstate(incoming()) &&
+        incoming().id == estateId &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() &&
+        isValidId(estateId) &&
+        isValidEstate(incoming()) &&
+        existing().ownerId == request.auth.uid &&
+        incoming().id == existing().id &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().ownerEmail == existing().ownerEmail &&
+        incoming().ownerName == existing().ownerName &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'principalName', 'activeStage', 'notes', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(estateId) && existing().ownerId == request.auth.uid;
+
+      // --- Estate Members Subcollection ---
+      match /members/{memberUid} {
+        allow get: if isValidId(estateId) && isValidId(memberUid) && isSignedIn() && (
+          request.auth.uid == memberUid || isEstateOwner(estateId)
+        );
+        allow list: if isSignedIn() && (
+          resource.data.uid == request.auth.uid || resource.data.ownerId == request.auth.uid
+        );
+        allow create: if isVerifiedUser() &&
+          isValidId(estateId) &&
+          isValidId(memberUid) &&
+          isValidEstateMember(incoming()) &&
+          incoming().uid == memberUid &&
+          incoming().estateId == estateId &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          exists(/databases/$(database)/documents/estates/$(estateId)) &&
+          (
+            isEstateOwner(estateId) ||
+            (
+              request.auth.uid == memberUid &&
+              hasVerifiedEmail(incoming().email.lower()) &&
+              exists(/databases/$(database)/documents/invitations/$(incoming().invitationId)) &&
+              get(/databases/$(database)/documents/invitations/$(incoming().invitationId)).data.status == 'pending' &&
+              get(/databases/$(database)/documents/invitations/$(incoming().invitationId)).data.estateId == estateId &&
+              get(/databases/$(database)/documents/invitations/$(incoming().invitationId)).data.inviteeEmail == request.auth.token.email.lower() &&
+              get(/databases/$(database)/documents/invitations/$(incoming().invitationId)).data.role == incoming().role &&
+              get(/databases/$(database)/documents/invitations/$(incoming().invitationId)).data.permission == incoming().permission &&
+              get(/databases/$(database)/documents/invitations/$(incoming().invitationId)).data.ownerId == incoming().ownerId &&
+              get(/databases/$(database)/documents/invitations/$(incoming().invitationId)).data.taskIds == incoming().taskIds &&
+              getAfter(/databases/$(database)/documents/invitations/$(incoming().invitationId)).data.status == 'accepted'
+            )
+          );
+        allow update: if isVerifiedUser() &&
+          isValidId(estateId) &&
+          isValidId(memberUid) &&
+          isValidEstateMember(incoming()) &&
+          isEstateOwner(estateId) &&
+          incoming().uid == existing().uid &&
+          incoming().estateId == existing().estateId &&
+          incoming().ownerId == existing().ownerId &&
+          incoming().invitationId == existing().invitationId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['role', 'permission', 'taskIds', 'estateTitle', 'updatedAt']);
+        allow delete: if isVerifiedUser() && isValidId(estateId) && isValidId(memberUid) && (
+          isEstateOwner(estateId) || request.auth.uid == memberUid
+        );
+      }
+
+      // --- Estate Tasks Subcollection ---
+      match /tasks/{taskId} {
+        allow get: if isValidId(estateId) && isValidId(taskId) && canAccessTask(estateId, taskId);
+        allow list: if isSignedIn() &&
+          resource.data.estateId == estateId && (
+            resource.data.ownerId == request.auth.uid ||
+            (isEstateMember(estateId) && getMemberData(estateId).taskIds.size() == 0)
+          );
+        allow create: if isVerifiedUser() &&
+          isValidId(estateId) &&
+          isValidId(taskId) &&
+          isValidEstateTask(incoming()) &&
+          'prerequisiteTaskIds' in incoming() &&
+          incoming().id == taskId &&
+          incoming().estateId == estateId &&
+          incoming().createdBy == request.auth.uid &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          exists(/databases/$(database)/documents/estates/$(estateId)) &&
+          incoming().ownerId == get(/databases/$(database)/documents/estates/$(estateId)).data.ownerId &&
+          canEditEstate(estateId);
+        allow update: if isVerifiedUser() &&
+          isValidId(estateId) &&
+          isValidId(taskId) &&
+          isValidEstateTask(incoming()) &&
+          incoming().id == existing().id &&
+          incoming().estateId == existing().estateId &&
+          incoming().ownerId == existing().ownerId &&
+          incoming().createdBy == existing().createdBy &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          canEditTask(estateId, taskId) &&
+          (
+            (isEstateOwner(estateId) && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'category', 'stage', 'priority', 'timingLabel', 'dueDate',
+              'reminderAt', 'reminderDismissed', 'instructions', 'executorNotes',
+              'completed', 'completedAt', 'prerequisiteTaskIds', 'sharedWithEmails', 'updatedAt'
+            ])) ||
+            (canEditEstate(estateId) && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'category', 'stage', 'priority', 'timingLabel', 'dueDate',
+              'reminderAt', 'reminderDismissed', 'instructions', 'executorNotes',
+              'completed', 'completedAt', 'prerequisiteTaskIds', 'updatedAt'
+            ]))
+          );
+        allow delete: if isVerifiedUser() && isValidId(estateId) && isValidId(taskId) && isEstateOwner(estateId);
+
+        // --- Task Comments Subcollection ---
+        match /comments/{commentId} {
+          allow get: if isValidId(estateId) && isValidId(taskId) && isValidId(commentId) && canAccessTask(estateId, taskId);
+          allow list: if isSignedIn() &&
+            resource.data.estateId == estateId &&
+            resource.data.taskId == taskId && (
+              resource.data.ownerId == request.auth.uid ||
+              (
+                isEstateMember(estateId) && (
+                  getMemberData(estateId).taskIds.size() == 0 ||
+                  taskId in getMemberData(estateId).taskIds
+                )
+              )
+            );
+          allow create: if isVerifiedUser() &&
+            isValidId(estateId) &&
+            isValidId(taskId) &&
+            isValidId(commentId) &&
+            isValidTaskComment(incoming()) &&
+            incoming().id == commentId &&
+            incoming().estateId == estateId &&
+            incoming().taskId == taskId &&
+            incoming().authorUid == request.auth.uid &&
+            incoming().createdAt == request.time &&
+            incoming().updatedAt == request.time &&
+            exists(/databases/$(database)/documents/estates/$(estateId)/tasks/$(taskId)) &&
+            incoming().ownerId == get(/databases/$(database)/documents/estates/$(estateId)).data.ownerId &&
+            canAccessTask(estateId, taskId);
+          allow update: if isVerifiedUser() &&
+            isValidId(estateId) &&
+            isValidId(taskId) &&
+            isValidId(commentId) &&
+            isValidTaskComment(incoming()) &&
+            incoming().id == existing().id &&
+            incoming().estateId == existing().estateId &&
+            incoming().taskId == existing().taskId &&
+            incoming().ownerId == existing().ownerId &&
+            incoming().authorUid == existing().authorUid &&
+            incoming().authorName == existing().authorName &&
+            incoming().authorRole == existing().authorRole &&
+            incoming().createdAt == existing().createdAt &&
+            incoming().updatedAt == request.time &&
+            existing().authorUid == request.auth.uid &&
+            canAccessTask(estateId, taskId) &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['kind', 'body', 'updatedAt']);
+          allow delete: if isVerifiedUser() &&
+            isValidId(estateId) &&
+            isValidId(taskId) &&
+            isValidId(commentId) &&
+            canAccessTask(estateId, taskId) && (
+              existing().authorUid == request.auth.uid || isEstateOwner(estateId)
+            );
+        }
+      }
+
+      // --- Vault Documents Subcollection ---
+      match /documents/{docId} {
+        allow get: if isValidId(estateId) && isValidId(docId) && canAccessEstate(estateId);
+        allow list: if isSignedIn() &&
+          resource.data.estateId == estateId &&
+          (resource.data.ownerId == request.auth.uid || isEstateMember(estateId));
+        allow create: if isVerifiedUser() &&
+          isValidId(estateId) &&
+          isValidId(docId) &&
+          isValidVaultDocument(incoming()) &&
+          incoming().id == docId &&
+          incoming().estateId == estateId &&
+          incoming().uploadedByUid == request.auth.uid &&
+          incoming().createdAt == request.time &&
+          incoming().updatedAt == request.time &&
+          exists(/databases/$(database)/documents/estates/$(estateId)) &&
+          incoming().ownerId == get(/databases/$(database)/documents/estates/$(estateId)).data.ownerId &&
+          canEditEstate(estateId);
+        allow update: if isVerifiedUser() &&
+          isValidId(estateId) &&
+          isValidId(docId) &&
+          isValidVaultDocument(incoming()) &&
+          incoming().id == existing().id &&
+          incoming().estateId == existing().estateId &&
+          incoming().ownerId == existing().ownerId &&
+          incoming().sizeBytes == existing().sizeBytes &&
+          incoming().sha256 == existing().sha256 &&
+          incoming().mimeType == existing().mimeType &&
+          incoming().chunkCount == existing().chunkCount &&
+          incoming().uploadedByUid == existing().uploadedByUid &&
+          incoming().uploadedByName == existing().uploadedByName &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          canEditEstate(estateId) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'category', 'taskId', 'notes', 'updatedAt']);
+        allow delete: if isVerifiedUser() && isValidId(estateId) && isValidId(docId) && canEditEstate(estateId);
+
+        match /chunks/{chunkId} {
+          allow get: if isValidId(estateId) && isValidId(docId) && isValidId(chunkId) && canAccessEstate(estateId);
+          allow list: if isSignedIn() &&
+            resource.data.estateId == estateId &&
+            (resource.data.ownerId == request.auth.uid || isEstateMember(estateId));
+          allow create: if isVerifiedUser() &&
+            isValidId(estateId) &&
+            isValidId(docId) &&
+            isValidId(chunkId) &&
+            isValidVaultChunk(incoming()) &&
+            incoming().estateId == estateId &&
+            exists(/databases/$(database)/documents/estates/$(estateId)) &&
+            (
+              exists(/databases/$(database)/documents/estates/$(estateId)/documents/$(docId)) ||
+              existsAfter(/databases/$(database)/documents/estates/$(estateId)/documents/$(docId))
+            ) &&
+            incoming().ownerId == get(/databases/$(database)/documents/estates/$(estateId)).data.ownerId &&
+            canEditEstate(estateId);
+          allow delete: if isVerifiedUser() && isValidId(estateId) && isValidId(docId) && isValidId(chunkId) && canEditEstate(estateId);
+        }
+      }
+    }
+
+    // --- Invitations ---
+    match /invitations/{inviteId} {
+      allow get: if isValidId(inviteId) && isSignedIn() && (
+        existing().ownerId == request.auth.uid ||
+        hasVerifiedEmail(existing().inviteeEmail)
+      );
+      allow list: if isSignedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        hasVerifiedEmail(resource.data.inviteeEmail)
+      );
+      allow create: if isVerifiedUser() &&
+        isValidId(inviteId) &&
+        isValidInvitation(incoming()) &&
+        incoming().id == inviteId &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().status == 'pending' &&
+        incoming().inviteeUid == '' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        isEstateOwner(incoming().estateId);
+      allow update: if isVerifiedUser() &&
+        isValidId(inviteId) &&
+        isValidInvitation(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().estateId == existing().estateId &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().ownerEmail == existing().ownerEmail &&
+        incoming().ownerName == existing().ownerName &&
+        incoming().inviteeEmail == existing().inviteeEmail &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        existing().status in ['pending', 'accepted'] &&
+        (
+          // Action: Owner updates permissions/role/tasks or revokes
+          (
+            existing().ownerId == request.auth.uid &&
+            incoming().inviteeUid == existing().inviteeUid &&
+            incoming().status in ['pending', 'accepted', 'revoked'] &&
+            !(existing().status == 'accepted' && incoming().status == 'pending') &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['role', 'permission', 'taskIds', 'status', 'estateTitle', 'updatedAt'])
+          ) ||
+          // Action: Invitee accepts pending invitation atomically with membership doc
+          (
+            hasVerifiedEmail(existing().inviteeEmail) &&
+            existing().status == 'pending' &&
+            incoming().status == 'accepted' &&
+            incoming().inviteeUid == request.auth.uid &&
+            incoming().role == existing().role &&
+            incoming().permission == existing().permission &&
+            incoming().taskIds == existing().taskIds &&
+            existsAfter(/databases/$(database)/documents/estates/$(existing().estateId)/members/$(request.auth.uid)) &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'inviteeUid', 'updatedAt'])
+          ) ||
+          // Action: Invitee declines pending invitation
+          (
+            hasVerifiedEmail(existing().inviteeEmail) &&
+            existing().status == 'pending' &&
+            incoming().status == 'declined' &&
+            incoming().inviteeUid == request.auth.uid &&
+            incoming().role == existing().role &&
+            incoming().permission == existing().permission &&
+            incoming().taskIds == existing().taskIds &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'inviteeUid', 'updatedAt'])
+          )
+        );
+      allow delete: if isVerifiedUser() && isValidId(inviteId) && existing().ownerId == request.auth.uid;
+    }
+  }
+}

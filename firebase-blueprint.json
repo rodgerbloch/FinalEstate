@@ -1,0 +1,500 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user profile stored privately per user.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "displayName", "photoURL", "createdAt", "updatedAt"]
+    },
+    "Estate": {
+      "title": "Estate",
+      "description": "An estate planning and administration ledger owned by a principal or executor.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerEmail": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "ownerName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 140
+        },
+        "principalName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "activeStage": {
+          "type": "string",
+          "enum": ["Pre-Need Planning", "Executor Action"]
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 5000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "ownerId", "ownerEmail", "ownerName", "title", "principalName", "activeStage", "notes", "createdAt", "updatedAt"]
+    },
+    "EstateMember": {
+      "title": "EstateMember",
+      "description": "Authorized collaborator membership record under an estate.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "estateId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "estateTitle": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "role": {
+          "type": "string",
+          "enum": ["Family Member", "Legal Advisor", "Co-Executor", "Financial Advisor"]
+        },
+        "permission": {
+          "type": "string",
+          "enum": ["View & Update", "View Only"]
+        },
+        "invitationId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "taskIds": {
+          "type": "array"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "estateId", "estateTitle", "ownerId", "ownerName", "email", "displayName", "role", "permission", "invitationId", "taskIds", "createdAt", "updatedAt"]
+    },
+    "EstateTask": {
+      "title": "EstateTask",
+      "description": "An estate planning or post-death executor administration task.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "estateId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "category": {
+          "type": "string",
+          "enum": ["Assets", "Liabilities", "Cashflow", "Legal & Probate", "Insurance", "Digital & Access", "Final Wishes"]
+        },
+        "stage": {
+          "type": "string",
+          "enum": ["Pre-Need Planning", "Executor Action"]
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["High", "Medium", "Low"]
+        },
+        "timingLabel": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "dueDate": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "reminderAt": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "reminderDismissed": {
+          "type": "boolean"
+        },
+        "instructions": {
+          "type": "array"
+        },
+        "executorNotes": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "completedAt": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "prerequisiteTaskIds": {
+          "type": "array",
+          "description": "IDs of pre-requisite tasks that must be completed before this task can be marked complete."
+        },
+        "sharedWithEmails": {
+          "type": "array"
+        },
+        "createdBy": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "estateId", "ownerId", "title", "category", "stage", "priority", "timingLabel", "dueDate", "reminderAt", "reminderDismissed", "instructions", "executorNotes", "completed", "completedAt", "prerequisiteTaskIds", "sharedWithEmails", "createdBy", "createdAt", "updatedAt"]
+    },
+    "TaskComment": {
+      "title": "TaskComment",
+      "description": "Timestamped message, question, or update left by an estate owner or collaborator on a task.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "estateId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "taskId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "authorRole": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["note", "question", "update"]
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "estateId", "taskId", "ownerId", "authorUid", "authorName", "authorRole", "kind", "body", "createdAt", "updatedAt"]
+    },
+    "VaultDocument": {
+      "title": "VaultDocument",
+      "description": "Metadata and SHA-256 fingerprint for a document stored in the estate vault.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "estateId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 220
+        },
+        "mimeType": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "sizeBytes": {
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["Assets", "Liabilities", "Cashflow", "Legal & Probate", "Insurance", "Digital & Access", "Final Wishes", "General"]
+        },
+        "taskId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "chunkCount": {
+          "type": "integer"
+        },
+        "uploadedByUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uploadedByName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "estateId", "ownerId", "name", "mimeType", "sizeBytes", "sha256", "category", "taskId", "notes", "chunkCount", "uploadedByUid", "uploadedByName", "createdAt", "updatedAt"]
+    },
+    "VaultChunk": {
+      "title": "VaultChunk",
+      "description": "Base64-encoded binary chunk of an encrypted/stored vault document.",
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "integer"
+        },
+        "estateId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "data": {
+          "type": "string",
+          "maxLength": 650000
+        }
+      },
+      "required": ["index", "estateId", "ownerId", "data"]
+    },
+    "Invitation": {
+      "title": "Invitation",
+      "description": "Collaborator invitation for an estate or specific estate tasks.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "estateId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "estateTitle": {
+          "type": "string",
+          "maxLength": 140
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerEmail": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "ownerName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "inviteeEmail": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "inviteeUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "role": {
+          "type": "string",
+          "enum": ["Family Member", "Legal Advisor", "Co-Executor", "Financial Advisor"]
+        },
+        "permission": {
+          "type": "string",
+          "enum": ["View & Update", "View Only"]
+        },
+        "taskIds": {
+          "type": "array"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "accepted", "declined", "revoked"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "estateId", "estateTitle", "ownerId", "ownerEmail", "ownerName", "inviteeEmail", "inviteeUid", "role", "permission", "taskIds", "status", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profiles indexed by auth UID."
+    },
+    "/estates/{estateId}": {
+      "schema": { "$ref": "#/entities/Estate" },
+      "description": "Estate ledgers owned by authenticated users."
+    },
+    "/estates/{estateId}/members/{memberUid}": {
+      "schema": { "$ref": "#/entities/EstateMember" },
+      "description": "Collaborator memberships for an estate."
+    },
+    "/estates/{estateId}/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/EstateTask" },
+      "description": "Checklist tasks belonging to an estate."
+    },
+    "/estates/{estateId}/tasks/{taskId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/TaskComment" },
+      "description": "Timestamped collaborator comments and questions on an estate task."
+    },
+    "/estates/{estateId}/documents/{docId}": {
+      "schema": { "$ref": "#/entities/VaultDocument" },
+      "description": "Metadata for uploaded documents in an estate vault."
+    },
+    "/estates/{estateId}/documents/{docId}/chunks/{chunkId}": {
+      "schema": { "$ref": "#/entities/VaultChunk" },
+      "description": "Chunked binary payloads for vault documents."
+    },
+    "/invitations/{inviteId}": {
+      "schema": { "$ref": "#/entities/Invitation" },
+      "description": "Collaborator invitations linking estate owners and invitees."
+    }
+  }
+}
